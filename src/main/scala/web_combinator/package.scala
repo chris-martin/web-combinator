@@ -24,29 +24,60 @@ package object web_combinator {
     */
   case object emptyApp extends StaticApp
 
-  def emptyBody[F[_] : Applicative] = ByteVector.empty.point[F]
+  // Requests
 
-  case class Request[+F[_]](
+  sealed trait Request[+F[_]]
+
+  case class RequestWithoutBody(
     method: Method = Method.GET,
     uri: Uri = Uri(path = "/"),
     httpVersion: HttpVersion = HttpVersion.`HTTP/1.1`,
-    headers: Headers = Headers.empty,
-    body: F[ByteVector]
-  )
+    headers: Headers = Headers.empty)
+  extends Request[Nothing]
 
-  case class Response[+F[_]](
+  type RequestBody[+F[_]] = F[ByteVector]
+
+  case class RequestWithBody[+F[_]]
+  (withoutBody: RequestWithoutBody = RequestWithoutBody(),
+   body: RequestBody[F]) extends Request[F]
+
+  def getRequestBody[F[_] : Applicative]
+  (request: Request[F]): RequestBody[F] =
+    request match {
+      case x: RequestWithBody[F] => x.body
+      case x: RequestWithoutBody => ByteVector.empty.point[F]
+    }
+
+  // Responses
+
+  sealed trait Response[+F[_]]
+
+  case class ResponseWithoutBody(
     status: Status = Status.Ok,
     httpVersion: HttpVersion = HttpVersion.`HTTP/1.1`,
-    headers: Headers = Headers.empty,
-    body: F[ByteVector]
-  )
+    headers: Headers = Headers.empty)
+  extends Response[Nothing]
+
+  type ResponseBody[+F[_]] = F[ByteVector]
+
+  case class ResponseWithBody[+F[_]]
+  (withoutBody: ResponseWithoutBody = ResponseWithoutBody(),
+   body: F[ByteVector]) extends Response[F]
+
+  def getResponseBody[F[_] : Applicative]
+  (response: Response[F]): ResponseBody[F] =
+    response match {
+      case x: ResponseWithBody[F] => x.body
+      case x: ResponseWithoutBody => ByteVector.empty.point[F]
+    }
+
+  // App stuff
 
   def getResponse[F[_] : Applicative]
   (app: App[F], request: Request[F]): F[Response[F]] =
     app match {
       case emptyApp =>
-        Response(status=Status.NotFound, body=ByteVector.empty.point[F])
-          .point[F]
+        (ResponseWithoutBody(status=Status.NotFound): Response[F]).point[F]
     }
 
   /** A relative file path.

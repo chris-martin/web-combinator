@@ -8,14 +8,16 @@ import scalaz._, scalaz.Scalaz._
 
 import org.scalatest._
 
+import DSL._
+
 class AppSpec extends FlatSpec with Matchers {
 
   val someArbitraryRequests: Seq[Request[Id]] = Seq(
-    Request[Id](body=emptyBody[Id]),
-    Request[Id](method=Method.POST, uri=Uri(path="/foo"), body=emptyBody[Id]))
+    request(),
+    request(method=Method.POST, uri=Uri(path="/foo"))
+      .withBody(ByteVector("abc".getBytes("UTF-8"))))
 
-  val basic404: Response[Id] =
-    Response[Id](status=Status.NotFound, body=ByteVector.empty.point[Id])
+  val basic404: Response[Id] = response(status=Status.NotFound)
 
   "The empty webapp" should "404" in {
     for (req <- someArbitraryRequests)
