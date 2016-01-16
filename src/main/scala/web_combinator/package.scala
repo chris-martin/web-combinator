@@ -7,6 +7,8 @@ import scala.language.higherKinds
 import scalaz._, scalaz.Scalaz._
 import scalaz.stream._
 
+import web_combinator.DSL._
+
 package object web_combinator {
 
   sealed trait App[+F[_]]
@@ -29,16 +31,16 @@ package object web_combinator {
   sealed trait Request[+F[_]]
 
   case class RequestWithoutBody(
-    method: Method = Method.GET,
-    uri: Uri = Uri(path = "/"),
-    httpVersion: HttpVersion = HttpVersion.`HTTP/1.1`,
-    headers: Headers = Headers.empty)
+    method: Method,
+    uri: Uri,
+    httpVersion: HttpVersion,
+    headers: Headers)
   extends Request[Nothing]
 
   type RequestBody[+F[_]] = F[ByteVector]
 
   case class RequestWithBody[+F[_]]
-  (withoutBody: RequestWithoutBody = RequestWithoutBody(),
+  (withoutBody: RequestWithoutBody,
    body: RequestBody[F]) extends Request[F]
 
   def getRequestBody[F[_] : Applicative]
@@ -53,15 +55,15 @@ package object web_combinator {
   sealed trait Response[+F[_]]
 
   case class ResponseWithoutBody(
-    status: Status = Status.Ok,
-    httpVersion: HttpVersion = HttpVersion.`HTTP/1.1`,
-    headers: Headers = Headers.empty)
+    status: Status,
+    httpVersion: HttpVersion,
+    headers: Headers)
   extends Response[Nothing]
 
   type ResponseBody[+F[_]] = F[ByteVector]
 
   case class ResponseWithBody[+F[_]]
-  (withoutBody: ResponseWithoutBody = ResponseWithoutBody(),
+  (withoutBody: ResponseWithoutBody,
    body: F[ByteVector]) extends Response[F]
 
   def getResponseBody[F[_] : Applicative]
@@ -77,7 +79,7 @@ package object web_combinator {
   (app: App[F], request: Request[F]): F[Response[F]] =
     app match {
       case emptyApp =>
-        (ResponseWithoutBody(status=Status.NotFound): Response[F]).point[F]
+        (response(status=Status.NotFound): Response[F]).point[F]
     }
 
   /** A relative file path.
