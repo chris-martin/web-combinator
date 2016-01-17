@@ -15,7 +15,7 @@ import qualified Data.Map as Map
 import Data.Maybe (Maybe(..), isJust)
 import Network.HTTP.Types.Status
 import Network.HTTP.Types.Method
-import Prelude (($), (==), (/=), otherwise)
+import Prelude (($), (==), (/=), Monoid(..), otherwise)
 import WebCombinator.Message
 import WebCombinator.Util (mapEntries, mapEntriesMaybe)
 
@@ -43,6 +43,24 @@ data App =
     -- any query string it receives from a client.
     | StaticFiles StaticFilesMapping
 
+staticFilesToStatic :: StaticFilesMapping -> StaticMapping
+staticFilesToStatic mapping = mapEntries f mapping
+    where f (pathSegments, body) = ( (pathSegments, Nothing)
+                                   , response status200 body)
+
+fallback Empty x = x
+fallback x Empty = x
+fallback (Static x) (Static y) = Static $ Map.union x y
+fallback (StaticFiles x) (StaticFiles y) = StaticFiles $ Map.union x y
+fallback (Static x) (StaticFiles y) =
+    Static $ Map.union x (staticFilesToStatic y)
+fallback (StaticFiles x) (Static y) =
+    Static $ Map.union (staticFilesToStatic x) y
+
+instance Monoid App where
+    mempty = Empty
+    mappend = fallback
+
 resolve :: App -> (Request, Body) -> (Response, Body)
 resolve Empty _ = emptyResponse status404
 resolve (Static m) (request@Request { requestMethod = methodGet }, _)
@@ -51,11 +69,8 @@ resolve (Static m) (request@Request { requestMethod = methodGet }, _)
     | otherwise =
         emptyResponse $ if exists then status405 else status404
         where exists = Map.member (requestPath request) m
-resolve (StaticFiles mapping) x =
-    resolve (Static $ (staticMapping :: StaticMapping)) x
-    where staticMapping = mapEntries f mapping
-          f (pathSegments, body) = ( (pathSegments, Nothing)
-                                   , response status200 body)
+resolve (StaticFiles mapping) x = resolve static x
+    where static = Static $ staticFilesToStatic mapping
 
 -- Any static mappings that can be derived from the app. This represents
 -- the subset of the app that could be deployed as files to a reverse proxy
