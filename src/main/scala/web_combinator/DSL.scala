@@ -1,10 +1,8 @@
 package web_combinator
 
-import scodec.bits.ByteVector
-
 import scalaz._, scalaz.Scalaz._
 
-import scala.language.higherKinds
+import scala.language.{implicitConversions, higherKinds}
 
 import org.http4s._
 
@@ -14,8 +12,8 @@ trait DSL {
     method: Method = Method.GET,
     uri: Uri = Uri(path = "/"),
     httpVersion: HttpVersion = HttpVersion.`HTTP/1.1`,
-    headers: Headers = Headers.empty): RequestWithoutBody =
-  RequestWithoutBody(
+    headers: Headers = Headers.empty): RequestPrelude =
+  RequestPrelude(
     method=method,
     uri=uri,
     httpVersion=httpVersion,
@@ -24,28 +22,22 @@ trait DSL {
   def response(
     status: Status = Status.Ok,
     httpVersion: HttpVersion = HttpVersion.`HTTP/1.1`,
-    headers: Headers = Headers.empty): ResponseWithoutBody =
-  ResponseWithoutBody(
+    headers: Headers = Headers.empty): ResponsePrelude =
+  ResponsePrelude(
     status=status,
     httpVersion=httpVersion,
     headers=headers)
 
-  implicit class _RequestHead(x: RequestWithoutBody) {
+  implicit def withEmptyBody[A, F[_] : Applicative](a: A): MessageF[A, F] =
+    MessageF[A, F](a, emptyBody.point[F])
 
-    def withBody[F[_]](body: RequestBody[F]): Request[F] =
-      RequestWithBody[F](x, body)
+  implicit class ThingEnrichment[A](a: A) {
 
-    def withBody(body: ByteVector): Request[Id] =
-      RequestWithBody[Id](x, body)
-  }
+    def withBody[F[_]](body: BodyF[F]): MessageF[A, F] =
+      MessageF[A, F](a, body)
 
-  implicit class _ResponseHead(x: ResponseWithoutBody) {
-
-    def withBody[F[_]](body: ResponseBody[F]): Response[F] =
-      ResponseWithBody[F](x, body)
-
-    def withBody(body: ByteVector): Response[Id] =
-      ResponseWithBody[Id](x, body)
+    def withBody(body: Body1): MessageF[A, Id] =
+      MessageF[A, Id](a, body.point[Id])
   }
 }
 

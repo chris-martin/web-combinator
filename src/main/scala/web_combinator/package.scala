@@ -26,60 +26,32 @@ package object web_combinator {
     */
   case object emptyApp extends StaticApp
 
-  // Requests
+  // Body
+  type Body1 = ByteVector
+  type BodyF[+F[_]] = F[Body1]
+  val emptyBody = ByteVector.empty
 
-  sealed trait Request[+F[_]]
+  // Message
+  case class MessageF[+A, +F[_]](a: A, body: BodyF[F])
+  type Message1[+A] = MessageF[A, Id]
 
-  case class RequestWithoutBody(
-    method: Method,
-    uri: Uri,
-    httpVersion: HttpVersion,
-    headers: Headers)
-  extends Request[Nothing]
+  // Request
+  case class RequestPrelude(
+    method: Method, uri: Uri, httpVersion: HttpVersion, headers: Headers)
+  type Request1 = MessageF[RequestPrelude, Id]
+  type RequestF[+F[_]] = MessageF[RequestPrelude, F]
 
-  type RequestBody[+F[_]] = F[ByteVector]
-
-  case class RequestWithBody[+F[_]]
-  (withoutBody: RequestWithoutBody,
-   body: RequestBody[F]) extends Request[F]
-
-  def getRequestBody[F[_] : Applicative]
-  (request: Request[F]): RequestBody[F] =
-    request match {
-      case x: RequestWithBody[F] => x.body
-      case x: RequestWithoutBody => ByteVector.empty.point[F]
-    }
-
-  // Responses
-
-  sealed trait Response[+F[_]]
-
-  case class ResponseWithoutBody(
-    status: Status,
-    httpVersion: HttpVersion,
-    headers: Headers)
-  extends Response[Nothing]
-
-  type ResponseBody[+F[_]] = F[ByteVector]
-
-  case class ResponseWithBody[+F[_]]
-  (withoutBody: ResponseWithoutBody,
-   body: F[ByteVector]) extends Response[F]
-
-  def getResponseBody[F[_] : Applicative]
-  (response: Response[F]): ResponseBody[F] =
-    response match {
-      case x: ResponseWithBody[F] => x.body
-      case x: ResponseWithoutBody => ByteVector.empty.point[F]
-    }
-
-  // App stuff
+  // Response
+  case class ResponsePrelude(
+    status: Status, httpVersion: HttpVersion, headers: Headers)
+  type Response1 = MessageF[ResponsePrelude, Id]
+  type ResponseF[+F[_]] = MessageF[ResponsePrelude, F]
 
   def getResponse[F[_] : Applicative]
-  (app: App[F], request: Request[F]): F[Response[F]] =
+  (app: App[F], request: RequestF[F]): F[ResponseF[F]] =
     app match {
       case emptyApp =>
-        (response(status=Status.NotFound): Response[F]).point[F]
+        withEmptyBody[ResponsePrelude, F](response(status=Status.NotFound)).point[F]
     }
 
   /** A relative file path.
