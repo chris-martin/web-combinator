@@ -1,6 +1,7 @@
 module Main where
 
-import Lib
+import Prelude (IO, return)
+import WebCombinator
 
 main :: IO ()
-main = someFunc
+main = return ()
